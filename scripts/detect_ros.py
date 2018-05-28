@@ -25,7 +25,7 @@ from std_msgs.msg import String , Header
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
-from enway_msgs import srv.SetObjectDetectionMode
+from enway_msgs.srv import *
 
 # Object detection module imports
 import object_detection
@@ -153,11 +153,13 @@ with detection_graph.as_default():
         return obj
       
       def object_detection_service_cb(self, req):
-        if (req.mode == IDLE):
+        # if (req.mode == enway_msgs.SetObjectDetectionModeRequest.IDLE):
+        if (req.mode == 0):
           # stop the object detector if running
           self.object_detection_activated = False
        
-        else if(req.mode == ACTIVE):
+        # elif(req.mode == enway_msgs.SetObjectDetectionModeRequest.ACTIVE):
+        elif(req.mode == 1):
           # start the service if idle
           self.object_detection_activated = True
 
