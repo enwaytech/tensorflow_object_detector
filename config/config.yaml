@@ -1,5 +1,6 @@
 debug_image_pub_name: /object_detector/debug_image
 object_pub_name: /object_detector/objects
+enable_detection_service_pub_name: /object_detector/SetObjectDetectionMode
 model_name: ssd_mobilenet_v1_coco_11_06_2017
 
 gpu_fraction: 0.4

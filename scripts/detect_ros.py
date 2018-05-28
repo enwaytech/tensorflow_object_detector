@@ -162,6 +162,8 @@ with detection_graph.as_default():
         elif(req.mode == 1):
           # start the service if idle
           self.object_detection_activated = True
+          
+        return True
 
 def main(args):
   obj=detector()
