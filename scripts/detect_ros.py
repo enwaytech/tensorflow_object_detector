@@ -25,6 +25,7 @@ from std_msgs.msg import String , Header
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
+from enway_msgs import srv.SetObjectDetectionMode
 
 # Object detection module imports
 import object_detection
@@ -76,57 +77,60 @@ with detection_graph.as_default():
         self.object_pub = rospy.Publisher(object_pub_topic, Detection2DArray, queue_size=1)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("image", Image, self.image_cb, queue_size=1, buff_size=2**24)
+        self.serviceServer = rospy.Service('SetObjectDetectionMode', SetObjectDetectionMode, self.object_detection_service_cb)
+        self.object_detection_activated = False
 
       def image_cb(self, data):
-        objArray = Detection2DArray()
-        try:
-          cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
-        except CvBridgeError as e:
-          print(e)
-        image=cv2.cvtColor(cv_image,cv2.COLOR_BGR2RGB)
-
-        # the array based representation of the image will be used later in order to prepare the
-        # result image with boxes and labels on it.
-        image_np = np.asarray(image)
-        # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
-        image_np_expanded = np.expand_dims(image_np, axis=0)
-        image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
-        # Each box represents a part of the image where a particular object was detected.
-        boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
-        # Each score represent how level of confidence for each of the objects.
-        # Score is shown on the result image, together with the class label.
-        scores = detection_graph.get_tensor_by_name('detection_scores:0')
-        classes = detection_graph.get_tensor_by_name('detection_classes:0')
-        num_detections = detection_graph.get_tensor_by_name('num_detections:0')
-        (boxes, scores, classes, num_detections) = sess.run([boxes, scores, classes, num_detections],
-            feed_dict={image_tensor: image_np_expanded})
-        objects=vis_util.visualize_boxes_and_labels_on_image_array(
-            image,
-            np.squeeze(boxes),
-            np.squeeze(classes).astype(np.int32),
-            np.squeeze(scores),
-            category_index,
-            use_normalized_coordinates=True,
-            line_thickness=2)
-
-        objArray.detections =[]
-        objArray.header=data.header
-        object_count=1
-
-        for i in range(len(objects)):
-          object_count+=1
-          objArray.detections.append(self.object_predict(objects[i],data.header,image_np,cv_image))
-
-        self.object_pub.publish(objArray)
-
-        img=cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
-        image_out = Image()
-        try:
-          image_out = self.bridge.cv2_to_imgmsg(img,"bgr8")
-        except CvBridgeError as e:
-          print(e)
-        image_out.header = data.header
-        self.image_pub.publish(image_out)
+        if(self.object_detection_activated):
+          objArray = Detection2DArray()
+          try:
+            cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
+          except CvBridgeError as e:
+            print(e)
+          image=cv2.cvtColor(cv_image,cv2.COLOR_BGR2RGB)
+  
+          # the array based representation of the image will be used later in order to prepare the
+          # result image with boxes and labels on it.
+          image_np = np.asarray(image)
+          # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
+          image_np_expanded = np.expand_dims(image_np, axis=0)
+          image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+          # Each box represents a part of the image where a particular object was detected.
+          boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
+          # Each score represent how level of confidence for each of the objects.
+          # Score is shown on the result image, together with the class label.
+          scores = detection_graph.get_tensor_by_name('detection_scores:0')
+          classes = detection_graph.get_tensor_by_name('detection_classes:0')
+          num_detections = detection_graph.get_tensor_by_name('num_detections:0')
+          (boxes, scores, classes, num_detections) = sess.run([boxes, scores, classes, num_detections],
+              feed_dict={image_tensor: image_np_expanded})
+          objects=vis_util.visualize_boxes_and_labels_on_image_array(
+              image,
+              np.squeeze(boxes),
+              np.squeeze(classes).astype(np.int32),
+              np.squeeze(scores),
+              category_index,
+              use_normalized_coordinates=True,
+              line_thickness=2)
+  
+          objArray.detections =[]
+          objArray.header=data.header
+          object_count=1
+  
+          for i in range(len(objects)):
+            object_count+=1
+            objArray.detections.append(self.object_predict(objects[i],data.header,image_np,cv_image))
+  
+          self.object_pub.publish(objArray)
+  
+          img=cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
+          image_out = Image()
+          try:
+            image_out = self.bridge.cv2_to_imgmsg(img,"bgr8")
+          except CvBridgeError as e:
+            print(e)
+          image_out.header = data.header
+          self.image_pub.publish(image_out)
 
       def object_predict(self,object_data, header, image_np,image):
         image_height,image_width,channels = image.shape
@@ -147,6 +151,15 @@ with detection_graph.as_default():
         obj.bbox.center.y = int((dimensions[0] + dimensions[2])*image_width/2)
 
         return obj
+      
+      def object_detection_service_cb(self, req):
+        if (req.mode == IDLE):
+          # stop the object detector if running
+          self.object_detection_activated = False
+       
+        else if(req.mode == ACTIVE):
+          # start the service if idle
+          self.object_detection_activated = True
 
 def main(args):
   obj=detector()
