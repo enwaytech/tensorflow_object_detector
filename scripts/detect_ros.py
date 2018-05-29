@@ -88,7 +88,7 @@ with detection_graph.as_default():
           except CvBridgeError as e:
             print(e)
           image=cv2.cvtColor(cv_image,cv2.COLOR_BGR2RGB)
-  
+
           # the array based representation of the image will be used later in order to prepare the
           # result image with boxes and labels on it.
           image_np = np.asarray(image)
@@ -112,17 +112,17 @@ with detection_graph.as_default():
               category_index,
               use_normalized_coordinates=True,
               line_thickness=2)
-  
+
           objArray.detections =[]
           objArray.header=data.header
           object_count=1
-  
+
           for i in range(len(objects)):
             object_count+=1
             objArray.detections.append(self.object_predict(objects[i],data.header,image_np,cv_image))
-  
+
           self.object_pub.publish(objArray)
-  
+
           img=cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
           image_out = Image()
           try:
@@ -147,22 +147,22 @@ with detection_graph.as_default():
         obj.results.append(obj_hypothesis)
         obj.bbox.size_y = int((dimensions[2]-dimensions[0])*image_height)
         obj.bbox.size_x = int((dimensions[3]-dimensions[1] )*image_width)
-        obj.bbox.center.x = int((dimensions[1] + dimensions [3])*image_height/2)
-        obj.bbox.center.y = int((dimensions[0] + dimensions[2])*image_width/2)
+        obj.bbox.center.x = int((dimensions[1] + dimensions [3])*image_width/2)
+        obj.bbox.center.y = int((dimensions[0] + dimensions[2])*image_height/2)
 
         return obj
-      
+
       def object_detection_service_cb(self, req):
         # if (req.mode == enway_msgs.SetObjectDetectionModeRequest.IDLE):
         if (req.mode == 0):
           # stop the object detector if running
           self.object_detection_activated = False
-       
+
         # elif(req.mode == enway_msgs.SetObjectDetectionModeRequest.ACTIVE):
         elif(req.mode == 1):
           # start the service if idle
           self.object_detection_activated = True
-          
+
         return True
 
 def main(args):
