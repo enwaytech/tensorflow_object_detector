@@ -34,7 +34,7 @@ from object_detection.utils import visualization_utils as vis_util
 
 rospy.init_node('tensorflow_object_detector_node')
 debug_image_topic = rospy.get_param('~debug_image_pub_name')
-object_pub_topic = rospy.get_param('~object_pub_name')
+object_pub_topic = rospy.get_param('~objects_detected_pub_name')
 model_name = rospy.get_param('~model_name')
 gpu_fraction = rospy.get_param('~gpu_fraction')
 rospack = rospkg.RosPack()
