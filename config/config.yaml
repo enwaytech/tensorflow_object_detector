@@ -6,4 +6,5 @@ model_name: ssd_mobilenet_v1_coco_11_06_2017
 gpu_fraction: 0.4
 frozen_graph_file_name: frozen_inference_graph.pb
 label_map_file_name: mscoco_label_map.pbtxt
+package_name_for_models: tensorflow_object_detection
 num_classes: 90

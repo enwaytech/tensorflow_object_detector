@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-## Author: Rohit
-## Date: July, 25, 2017
+# # Author: Rohit
+# # Date: July, 25, 2017
 # Purpose: Ros node to detect objects using tensorflow
 
 # Modified by Thanuja Ambegoda, Enway GmbH - May 13th, 2018
@@ -38,7 +38,8 @@ object_pub_topic = rospy.get_param('~objects_detected_pub_name')
 model_name = rospy.get_param('~model_name')
 gpu_fraction = rospy.get_param('~gpu_fraction')
 rospack = rospkg.RosPack()
-pkg_path = rospack.get_path('tensorflow_object_detector');
+pkg_path_name = rospy.get_param('~package_name_for_models')
+pkg_path = rospack.get_path(pkg_path_name);
 model_root = rospy.get_param('~model_root')
 model_path = os.path.join(model_root, 'models', model_name)
 frozen_graph_file_name = rospy.get_param('~frozen_graph_file_name')
@@ -57,7 +58,7 @@ with detection_graph.as_default():
     od_graph_def.ParseFromString(serialized_graph)
     tf.import_graph_def(od_graph_def, name='')
 
-## Loading label map
+# # Loading label map
 # Label maps map indices to category names, so that when our convolution network predicts `5`,
 # we know that this corresponds to `airplane`.  Here we use internal utility functions,
 # but anything that returns a dictionary mapping integers to appropriate string labels would be fine
@@ -71,49 +72,47 @@ config.gpu_options.per_process_gpu_memory_fraction = gpu_fraction
 
 # Detection
 with detection_graph.as_default():
-  with tf.Session(graph=detection_graph,config=config) as sess:
+  with tf.Session(graph=detection_graph, config=config) as sess:
     class detector:
 
       def __init__(self):
         self.image_pub = rospy.Publisher(debug_image_topic, Image, queue_size=1)
         self.object_pub = rospy.Publisher(object_pub_topic, Detection2DArray, queue_size=1)
         self.bridge = CvBridge()
-        self.image_sub = rospy.Subscriber("image", Image, self.image_cb, queue_size=1, buff_size=2**24)
+        self.image_sub = rospy.Subscriber("image", Image, self.image_cb, queue_size=1, buff_size=2 ** 24)
         self.serviceServer = rospy.Service('SetObjectDetectionMode', SetObjectDetectionMode, self.object_detection_service_cb)
         self.object_detection_activated = False
 
-      def generate_im_patch(img_in, patch_size, patch_stride):
-          if img_in is None:
-              continue
-          self.rows = img.shape[0]
-          self.cols = img.shape[1]
-          # get the bottom half of the image
-          img = img_in[:, (self.rows/2 + 1) : self.rows]
-          patch_id = 0
-          for i in range(0, rows - patch_size, patch_stride):
-              for j in range(0, cols - patch_size, patch_stride):
-                  patch_id += 1
-                  im_patch = img[i : i + patch_size, j : j + patch_size, ...]
-                  # debug start
-                  save_name = '/home/thanuja/test/patch_%d.png' % (patch_id)
-                  cv2.imwrite(save_name, im_patch)
-                  # debug stop
-                  yield im_patch, i, j
+      def generate_im_patch(self, img_in, patch_size, patch_stride):
+        self.rows = img_in.shape[0]
+        self.cols = img_in.shape[1]
+        # get the bottom half of the image
+        img = img_in[:, (self.rows / 2 + 1) : self.rows]
+        patch_id = 0
+        for i in range(0, self.rows - patch_size, patch_stride):
+          for j in range(0, self.cols - patch_size, patch_stride):
+            patch_id += 1
+            im_patch = img[i : i + patch_size, j : j + patch_size, ...]
+            # debug start
+            save_name = '/home/thanuja/test/patch_%d.png' % (patch_id)
+            cv2.imwrite(save_name, im_patch)
+            # debug stop
+            yield im_patch, i, j
 
-      def results_aggregator(boxes, scores, classes, num_detections, \
+      def results_aggregator(self, boxes, scores, classes, num_detections, \
                     boxes_all, scores_all, classes_all, num_detections_all, \
-                    y0, x0)):
-          # box_coords = ymin, xmin, ymax, xmax
-          num_predictions = length(scores)
-          for i in range(0,num_predictions):
-              ymin = (boxes[i][0]*patch_size + y0 + self.rows/2 )/self.rows
-              ymax = (boxes[i][2]*patch_size + y0 + self.rows/2 )/self.rows
-              xmin = (boxes[i][1]*patch_size + x0)/self.cols
-              xmax = (boxes[i][3]*patch_size + x0)/self.cols
-              boxes_all.append([ymin, xmin, ymax, xmax])
-              scores_all.append(scores[i])
-              classes_all.append(classes[i])
-              num_detections_all += num_detections
+                    y0, x0):
+        # box_coords = ymin, xmin, ymax, xmax
+        num_predictions = length(scores)
+        for i in range(0, num_predictions):
+          ymin = (boxes[i][0] * patch_size + y0 + self.rows / 2) / self.rows
+          ymax = (boxes[i][2] * patch_size + y0 + self.rows / 2) / self.rows
+          xmin = (boxes[i][1] * patch_size + x0) / self.cols
+          xmax = (boxes[i][3] * patch_size + x0) / self.cols
+          boxes_all.append([ymin, xmin, ymax, xmax])
+          scores_all.append(scores[i])
+          classes_all.append(classes[i])
+          num_detections_all += num_detections
 
           return boxes_all, scores_all, classes_all, num_detections_all
 
@@ -124,16 +123,17 @@ with detection_graph.as_default():
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
           except CvBridgeError as e:
             print(e)
-          image_in=cv2.cvtColor(cv_image,cv2.COLOR_BGR2RGB)
-
+          image_in = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+          '''
           boxes_all = detection_graph.get_tensor_by_name('detection_boxes:0')
           # Each score represent how level of confidence for each of the objects.
           # Score is shown on the result image, together with the class label.
           scores_all = detection_graph.get_tensor_by_name('detection_scores:0')
           classes_all = detection_graph.get_tensor_by_name('detection_classes:0')
           num_detections_all = detection_graph.get_tensor_by_name('num_detections:0')
+          '''
           # Split image and run the following code for each image in parallel
-          for image, y0, x0 in self.generate_im_patch(image_in, patch_size=300, patch_stride=100):
+          for image, y0, x0 in self.generate_im_patch(image_in, patch_size, patch_stride):
 
               # the array based representation of the image will be used later in order to prepare the
               # result image with boxes and labels on it.
@@ -148,15 +148,15 @@ with detection_graph.as_default():
               scores = detection_graph.get_tensor_by_name('detection_scores:0')
               classes = detection_graph.get_tensor_by_name('detection_classes:0')
               num_detections = detection_graph.get_tensor_by_name('num_detections:0')
-              (boxes, scores, classes, num_detections) = sess.run([boxes, scores, classes, num_detections],
+              (boxes, scores, classes, num_detections) = sess.run([boxes, scores, classes, num_detections], \
                   feed_dict={image_tensor: image_np_expanded})
               # put together prediction results into one image representation
-              (boxes_all, scores_all, classes_all, num_detections_all) = self.results_aggregator( \
+              (boxes_all, scores_all, classes_all, num_detections_all) = self.results_aggregator(\
                                     boxes, scores, classes, num_detections, \
                                     boxes_all, scores_all, classes_all, num_detections_all, \
                                     y0, x0)
 
-          objects=vis_util.visualize_boxes_and_labels_on_image_array(
+          objects = vis_util.visualize_boxes_and_labels_on_image_array(
               image,
               np.squeeze(boxes_all),
               np.squeeze(classes_all).astype(np.int32),
@@ -165,42 +165,42 @@ with detection_graph.as_default():
               use_normalized_coordinates=True,
               line_thickness=2)
 
-          objArray.detections =[]
-          objArray.header=data.header
-          object_count=1
+          objArray.detections = []
+          objArray.header = data.header
+          object_count = 1
 
           for i in range(len(objects)):
-            object_count+=1
-            objArray.detections.append(self.object_predict(objects[i],data.header,image_np,cv_image))
+            object_count += 1
+            objArray.detections.append(self.object_predict(objects[i], data.header, image_np, cv_image))
 
           self.object_pub.publish(objArray)
 
-          img=cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
+          img = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
           image_out = Image()
           try:
-            image_out = self.bridge.cv2_to_imgmsg(img,"bgr8")
+            image_out = self.bridge.cv2_to_imgmsg(img, "bgr8")
           except CvBridgeError as e:
             print(e)
           image_out.header = data.header
           self.image_pub.publish(image_out)
 
-      def object_predict(self,object_data, header, image_np,image):
-        image_height,image_width,channels = image.shape
-        obj=Detection2D()
-        obj_hypothesis= ObjectHypothesisWithPose()
+      def object_predict(self, object_data, header, image_np, image):
+        image_height, image_width, channels = image.shape
+        obj = Detection2D()
+        obj_hypothesis = ObjectHypothesisWithPose()
 
-        object_id=object_data[0]
-        object_score=object_data[1]
-        dimensions=object_data[2]
+        object_id = object_data[0]
+        object_score = object_data[1]
+        dimensions = object_data[2]
 
-        obj.header=header
+        obj.header = header
         obj_hypothesis.id = object_id
         obj_hypothesis.score = object_score
         obj.results.append(obj_hypothesis)
-        obj.bbox.size_y = int((dimensions[2]-dimensions[0])*image_height)
-        obj.bbox.size_x = int((dimensions[3]-dimensions[1] )*image_width)
-        obj.bbox.center.x = int((dimensions[1] + dimensions [3])*image_width/2)
-        obj.bbox.center.y = int((dimensions[0] + dimensions[2])*image_height/2)
+        obj.bbox.size_y = int((dimensions[2] - dimensions[0]) * image_height)
+        obj.bbox.size_x = int((dimensions[3] - dimensions[1]) * image_width)
+        obj.bbox.center.x = int((dimensions[1] + dimensions [3]) * image_width / 2)
+        obj.bbox.center.y = int((dimensions[0] + dimensions[2]) * image_height / 2)
 
         return obj
 
@@ -218,12 +218,12 @@ with detection_graph.as_default():
         return True
 
 def main(args):
-  obj=detector()
+  obj = detector()
   try:
     rospy.spin()
   except KeyboardInterrupt:
     print("ShutDown")
   cv2.destroyAllWindows()
 
-if __name__=='__main__':
+if __name__ == '__main__':
   main(sys.argv)
