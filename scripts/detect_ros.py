@@ -49,6 +49,7 @@ path_to_label_maps = os.path.join(model_root, 'labels', label_map_file)
 num_classes = rospy.get_param('~num_classes')
 patch_size = rospy.get_param('~patch_size')
 patch_stride = rospy.get_param('~patch_stride')
+min_score = rospy.get_param('~min_score')
 
 detection_graph = tf.Graph()
 with detection_graph.as_default():
@@ -86,15 +87,19 @@ with detection_graph.as_default():
       def generate_im_patch(self, img_in, patch_size, patch_stride):
         self.rows = img_in.shape[0]
         self.cols = img_in.shape[1]
+        print("img_in rows = %d, cols = %d", (self.rows, self.cols))
         # get the bottom half of the image
         img = img_in[:, (self.rows / 2 + 1) : self.rows]
+        print("sub image img.shape = ")
+        print(img.shape)
         patch_id = 0
-        for i in range(0, self.rows - patch_size, patch_stride):
-          for j in range(0, self.cols - patch_size, patch_stride):
-            patch_id += 1
+        for i in range(0, img.shape[0] - patch_size, patch_stride):
+          for j in range(0, img.shape[1] - patch_size, patch_stride):
+            patch_id = patch_id + 1
             im_patch = img[i : i + patch_size, j : j + patch_size, ...]
             # debug start
             save_name = '/home/thanuja/test/patch_%d.png' % (patch_id)
+            print("patch saved!************** i=%d, j=%d" % (i,j))
             cv2.imwrite(save_name, im_patch)
             # debug stop
             yield im_patch, i, j
@@ -103,15 +108,23 @@ with detection_graph.as_default():
                     boxes_all, scores_all, classes_all, num_detections_all, \
                     y0, x0):
         # box_coords = ymin, xmin, ymax, xmax
-        num_predictions = length(scores)
+        num_predictions = len(scores)
         for i in range(0, num_predictions):
           ymin = (boxes[i][0] * patch_size + y0 + self.rows / 2) / self.rows
           ymax = (boxes[i][2] * patch_size + y0 + self.rows / 2) / self.rows
           xmin = (boxes[i][1] * patch_size + x0) / self.cols
           xmax = (boxes[i][3] * patch_size + x0) / self.cols
+          print("ymin, xmin, ymax, xmax = ") 
+          print(ymin, ymax, xmin, xmax)
           boxes_all.append([ymin, xmin, ymax, xmax])
+          print("scores[i]=")
+          print(scores[i])
           scores_all.append(scores[i])
+          print("classes[i]=")
+          print(classes[i])
           classes_all.append(classes[i])
+          print("num_detections=")
+          print(num_detections)
           num_detections_all += num_detections
 
           return boxes_all, scores_all, classes_all, num_detections_all
@@ -124,14 +137,14 @@ with detection_graph.as_default():
           except CvBridgeError as e:
             print(e)
           image_in = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-          '''
-          boxes_all = detection_graph.get_tensor_by_name('detection_boxes:0')
+          
+          boxes_all = []
           # Each score represent how level of confidence for each of the objects.
           # Score is shown on the result image, together with the class label.
-          scores_all = detection_graph.get_tensor_by_name('detection_scores:0')
-          classes_all = detection_graph.get_tensor_by_name('detection_classes:0')
-          num_detections_all = detection_graph.get_tensor_by_name('num_detections:0')
-          '''
+          scores_all = []
+          classes_all = []
+          num_detections_all = []
+          
           # Split image and run the following code for each image in parallel
           for image, y0, x0 in self.generate_im_patch(image_in, patch_size, patch_stride):
 
@@ -139,7 +152,7 @@ with detection_graph.as_default():
               # result image with boxes and labels on it.
               image_np = np.asarray(image)
               # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
-              image_np_expanded = np.expand_dims(image_np, axis=0)
+              image_np_expanded = np.expand_dims(image_np, axis=0)              
               image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
               # Each box represents a part of the image where a particular object was detected.
               boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
@@ -150,17 +163,32 @@ with detection_graph.as_default():
               num_detections = detection_graph.get_tensor_by_name('num_detections:0')
               (boxes, scores, classes, num_detections) = sess.run([boxes, scores, classes, num_detections], \
                   feed_dict={image_tensor: image_np_expanded})
+              # debug info
+              print("image_np_expanded.shape=")
+              print(image_np_expanded.shape)
+              print("image_tensor.shape=")
+              print(image_tensor.shape)
+              print("boxes.shape=")
+              print(boxes.shape)
+              print("scores.shape=")
+              print(scores.shape)
+              print("classes.shape=")
+              print(classes.shape)
+              print("num_detections.shape=")
+              print(num_detections.shape)
+              '''
               # put together prediction results into one image representation
               (boxes_all, scores_all, classes_all, num_detections_all) = self.results_aggregator(\
                                     boxes, scores, classes, num_detections, \
                                     boxes_all, scores_all, classes_all, num_detections_all, \
                                     y0, x0)
-
+              '''                     
+              
           objects = vis_util.visualize_boxes_and_labels_on_image_array(
               image,
               np.squeeze(boxes_all),
-              np.squeeze(classes_all).astype(np.int32),
-              np.squeeze(scores_all),
+              np.squeeze(classes_all_tf).astype(np.int32),
+              np.squeeze(scores_all_tf),
               category_index,
               use_normalized_coordinates=True,
               line_thickness=2)
@@ -174,7 +202,7 @@ with detection_graph.as_default():
             objArray.detections.append(self.object_predict(objects[i], data.header, image_np, cv_image))
 
           self.object_pub.publish(objArray)
-
+          
           img = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
           image_out = Image()
           try:
