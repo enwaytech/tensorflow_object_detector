@@ -105,7 +105,7 @@ with detection_graph.as_default():
             yield im_patch, i, j
 
       def results_aggregator(self, boxes, scores, classes, num_detections, \
-                    boxes_all, scores_all, classes_all, num_detections_all, \
+                    boxes_all_t, scores_all_t, classes_all_t, num_detections_all, \
                     y0, x0):
         # box_coords = ymin, xmin, ymax, xmax
         num_predictions = len(scores)
@@ -113,21 +113,32 @@ with detection_graph.as_default():
           ymin = (boxes[i][0] * patch_size + y0 + self.rows / 2) / self.rows
           ymax = (boxes[i][2] * patch_size + y0 + self.rows / 2) / self.rows
           xmin = (boxes[i][1] * patch_size + x0) / self.cols
-          xmax = (boxes[i][3] * patch_size + x0) / self.cols
-          print("ymin, xmin, ymax, xmax = ") 
+          xmax = (boxes[i][3] * patch_size + x0) / self.cols 
           print(ymin, ymax, xmin, xmax)
-          boxes_all.append([ymin, xmin, ymax, xmax])
-          print("scores[i]=")
-          print(scores[i])
-          scores_all.append(scores[i])
-          print("classes[i]=")
-          print(classes[i])
-          classes_all.append(classes[i])
-          print("num_detections=")
-          print(num_detections)
-          num_detections_all += num_detections
+          box_adjusted = np.array([ymin, ymax, xmin, xmax]).astype(np.float32)
+          print("box_adjusted.shape=")
+          print(box_adjusted.shape)
+          print("before concat boxes_all_t.shape=")
+          print(boxes_all_t.shape)
+          boxes_all_t = tf.concat([boxes_all_t, box_adjusted],0)
+          print("after concat boxes_all_t.shape=")
+          print(boxes_all_t.shape)
+          
+        scores_all_t = tf.concat([scores_all_t, scores],1)
+        print("scores.shape=")
+        print(scores.shape)
+        print("scores_all_t.shape=")
+        print(scores_all_t.shape)
+        classes_all_t = tf.concat([classes_all_t, classes],1)
+        print("classes.shape")
+        print(classes.shape)
+        print("classes_all_t.shape")
+        print(classes_all_t.shape)
+        print("num_detections=")
+        print(num_detections)
+        num_detections_all += num_detections
 
-          return boxes_all, scores_all, classes_all, num_detections_all
+        return boxes_all_t, scores_all_t, classes_all_t, num_detections_all
 
       def image_cb(self, data):
         if(self.object_detection_activated):
@@ -144,6 +155,10 @@ with detection_graph.as_default():
           scores_all = []
           classes_all = []
           num_detections_all = []
+          
+          boxes_all_t = detection_graph.get_tensor_by_name('detection_boxes:0')
+          scores_all_t = detection_graph.get_tensor_by_name('detection_scores:0')
+          classes_all_t = detection_graph.get_tensor_by_name('detection_classes:0')
           
           # Split image and run the following code for each image in parallel
           for image, y0, x0 in self.generate_im_patch(image_in, patch_size, patch_stride):
@@ -163,32 +178,24 @@ with detection_graph.as_default():
               num_detections = detection_graph.get_tensor_by_name('num_detections:0')
               (boxes, scores, classes, num_detections) = sess.run([boxes, scores, classes, num_detections], \
                   feed_dict={image_tensor: image_np_expanded})
-              # debug info
-              print("image_np_expanded.shape=")
-              print(image_np_expanded.shape)
-              print("image_tensor.shape=")
-              print(image_tensor.shape)
-              print("boxes.shape=")
-              print(boxes.shape)
-              print("scores.shape=")
-              print(scores.shape)
-              print("classes.shape=")
-              print(classes.shape)
-              print("num_detections.shape=")
-              print(num_detections.shape)
-              '''
-              # put together prediction results into one image representation
-              (boxes_all, scores_all, classes_all, num_detections_all) = self.results_aggregator(\
-                                    boxes, scores, classes, num_detections, \
-                                    boxes_all, scores_all, classes_all, num_detections_all, \
-                                    y0, x0)
-              '''                     
               
+              # put together prediction results into one image representation
+              (boxes_all_t, scores_all_t, classes_all_t, num_detections_all) = self.results_aggregator(\
+                                    boxes, scores, classes, num_detections, \
+                                    boxes_all_t, scores_all_t, classes_all_t, num_detections_all, \
+                                    y0, x0)
+          '''                         
+          print("classes_all_t")
+          # tf.Print(classes_all_t, classes_all_t)    
+          tf.Print(classes_all_t, [classes_all_t])  # This does nothing
+          classes_all_t = tf.Print(classes_all_t, [classes_all_t])  # Here we are using the value returned by tf.Print
+          result = classes_all_t + 1  # Now when result is evaluated the value of `t` will be printed.
+          '''
           objects = vis_util.visualize_boxes_and_labels_on_image_array(
               image,
-              np.squeeze(boxes_all),
-              np.squeeze(classes_all_tf).astype(np.int32),
-              np.squeeze(scores_all_tf),
+              np.squeeze(boxes_all_t),
+              np.squeeze(classes_all_t).astype(np.int32),
+              np.squeeze(scores_all_t),
               category_index,
               use_normalized_coordinates=True,
               line_thickness=2)
