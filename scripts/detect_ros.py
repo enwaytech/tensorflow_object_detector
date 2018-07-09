@@ -89,7 +89,11 @@ with detection_graph.as_default():
         self.cols = img_in.shape[1]
         print("img_in rows = %d, cols = %d", (self.rows, self.cols))
         # get the bottom half of the image
-        img = img_in[:, (self.rows / 2 + 1) : self.rows]
+        img = img_in[(self.rows / 2 + 1) : self.rows, :]
+        img_cv = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        save_name = '/home/thanuja/test/outputs/in.png'
+        print("output saved!**************")
+        cv2.imwrite(save_name, img_cv)
         print("sub image img.shape = ")
         print(img.shape)
         patch_id = 0
@@ -149,7 +153,7 @@ with detection_graph.as_default():
           # the array based representation of the image will be used later in order to prepare the
           # result image with boxes and labels on it.
           # debug start
-          save_name = '/home/thanuja/test/patch_%d.png' % (patch_id)
+          save_name = '/home/thanuja/test/inputs/patch_%d.png' % (patch_id)
           print("patch saved!************** i=%d" % (patch_id))
           cv2.imwrite(save_name, image)
           # debug stop
@@ -198,7 +202,7 @@ with detection_graph.as_default():
           except CvBridgeError as e:
             print(e)
           image_in = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
-          
+          image_in_np = np.asarray(image_in)
           object_array, coords_array, image_array, image_np_array = self.get_objects_in_image(image_in)
           
           objArray.detections = []
@@ -218,8 +222,12 @@ with detection_graph.as_default():
 
           self.object_pub.publish(objArray)
           
-          image_np_out = self.aggregate_patches(image_np_array, coords_array)
+          image_np_out = self.aggregate_patches(image_in_np, image_np_array, coords_array)
+          image_np_out=image_np_out.astype(np.uint8)
           img = cv2.cvtColor(image_np_out, cv2.COLOR_BGR2RGB)
+          save_name = '/home/thanuja/test/outputs/out.png'
+          print("output saved!**************")
+          cv2.imwrite(save_name, img)
           image_out = Image()
           try:
             image_out = self.bridge.cv2_to_imgmsg(img, "bgr8")
@@ -281,15 +289,15 @@ with detection_graph.as_default():
 
         return True
       
-      def aggregate_patches(self, image_np_array, coords_array):
+      def aggregate_patches(self, image_np_in, image_np_array, coords_array):
 
-        im_out = np.zeros( [self.rows, self.cols, 3] )
+        im_out = image_np_in
         print("im_out.shape")
         print(im_out.shape)
         for i in range(len(image_np_array)):
           image_patch = image_np_array[i]
           [start_col, start_row] = coords_array[i]
-          
+          start_row = start_row + self.rows / 2
           stop_col = start_col + image_patch.shape[1]
           stop_row = start_row + image_patch.shape[0]
           print("i, start_col, stop_col, start_row, stop_row")
