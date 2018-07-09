@@ -97,11 +97,6 @@ with detection_graph.as_default():
           for j in range(0, img.shape[1] - patch_size, patch_stride):
             patch_id = patch_id + 1
             im_patch = img[i : i + patch_size, j : j + patch_size, ...]
-            # debug start
-            save_name = '/home/thanuja/test/patch_%d.png' % (patch_id)
-            print("patch saved!************** i=%d, j=%d" % (i,j))
-            cv2.imwrite(save_name, im_patch)
-            # debug stop
             yield im_patch, i, j
 
       def results_aggregator(self, boxes, scores, classes, num_detections, \
@@ -139,6 +134,61 @@ with detection_graph.as_default():
         num_detections_all += num_detections
 
         return boxes_all_t, scores_all_t, classes_all_t, num_detections_all
+      
+      def get_objects_in_image(self, image_in):
+        # Each score represent how level of confidence for each of the objects.
+        # Score is shown on the result image, together with the class label.
+        object_array = []
+        coord_array = []
+        image_array = []
+        image_np_array = []
+        patch_id = 0
+        # Split image and run the following code for each image in parallel
+        for image, y0, x0 in self.generate_im_patch(image_in, patch_size, patch_stride):
+          patch_id = patch_id + 1
+          # the array based representation of the image will be used later in order to prepare the
+          # result image with boxes and labels on it.
+          # debug start
+          save_name = '/home/thanuja/test/patch_%d.png' % (patch_id)
+          print("patch saved!************** i=%d" % (patch_id))
+          cv2.imwrite(save_name, image)
+          # debug stop
+          image_np = np.asarray(image)
+          # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
+          image_np_expanded = np.expand_dims(image_np, axis=0)              
+          image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
+          # Each box represents a part of the image where a particular object was detected.
+          boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
+          # Each score represent how level of confidence for each of the objects.
+          # Score is shown on the result image, together with the class label.
+          scores = detection_graph.get_tensor_by_name('detection_scores:0')
+          classes = detection_graph.get_tensor_by_name('detection_classes:0')
+          num_detections = detection_graph.get_tensor_by_name('num_detections:0')
+          (boxes, scores, classes, num_detections) = sess.run([boxes, scores, classes, num_detections], \
+              feed_dict={image_tensor: image_np_expanded})
+          
+          '''
+          # put together prediction results into one image representation
+          (boxes_all_t, scores_all_t, classes_all_t, num_detections_all) = self.results_aggregator(\
+                                boxes, scores, classes, num_detections, \
+                                boxes_all_t, scores_all_t, classes_all_t, num_detections_all, \
+                                y0, x0)
+          '''
+
+          objects = vis_util.visualize_boxes_and_labels_on_image_array(
+              image,
+              np.squeeze(boxes),
+              np.squeeze(classes).astype(np.int32),
+              np.squeeze(scores),
+              category_index,
+              use_normalized_coordinates=True,
+              line_thickness=2)
+          
+          object_array.append(objects)
+          coord_array.append([x0, y0])
+          image_array.append(image)
+          image_np_array.append(image_np)
+        return object_array, coord_array, image_array, image_np_array
 
       def image_cb(self, data):
         if(self.object_detection_activated):
@@ -149,68 +199,27 @@ with detection_graph.as_default():
             print(e)
           image_in = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
           
-          boxes_all = []
-          # Each score represent how level of confidence for each of the objects.
-          # Score is shown on the result image, together with the class label.
-          scores_all = []
-          classes_all = []
-          num_detections_all = []
+          object_array, coords_array, image_array, image_np_array = self.get_objects_in_image(image_in)
           
-          boxes_all_t = detection_graph.get_tensor_by_name('detection_boxes:0')
-          scores_all_t = detection_graph.get_tensor_by_name('detection_scores:0')
-          classes_all_t = detection_graph.get_tensor_by_name('detection_classes:0')
-          
-          # Split image and run the following code for each image in parallel
-          for image, y0, x0 in self.generate_im_patch(image_in, patch_size, patch_stride):
-
-              # the array based representation of the image will be used later in order to prepare the
-              # result image with boxes and labels on it.
-              image_np = np.asarray(image)
-              # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
-              image_np_expanded = np.expand_dims(image_np, axis=0)              
-              image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
-              # Each box represents a part of the image where a particular object was detected.
-              boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
-              # Each score represent how level of confidence for each of the objects.
-              # Score is shown on the result image, together with the class label.
-              scores = detection_graph.get_tensor_by_name('detection_scores:0')
-              classes = detection_graph.get_tensor_by_name('detection_classes:0')
-              num_detections = detection_graph.get_tensor_by_name('num_detections:0')
-              (boxes, scores, classes, num_detections) = sess.run([boxes, scores, classes, num_detections], \
-                  feed_dict={image_tensor: image_np_expanded})
-              
-              # put together prediction results into one image representation
-              (boxes_all_t, scores_all_t, classes_all_t, num_detections_all) = self.results_aggregator(\
-                                    boxes, scores, classes, num_detections, \
-                                    boxes_all_t, scores_all_t, classes_all_t, num_detections_all, \
-                                    y0, x0)
-          '''                         
-          print("classes_all_t")
-          # tf.Print(classes_all_t, classes_all_t)    
-          tf.Print(classes_all_t, [classes_all_t])  # This does nothing
-          classes_all_t = tf.Print(classes_all_t, [classes_all_t])  # Here we are using the value returned by tf.Print
-          result = classes_all_t + 1  # Now when result is evaluated the value of `t` will be printed.
-          '''
-          objects = vis_util.visualize_boxes_and_labels_on_image_array(
-              image,
-              np.squeeze(boxes_all_t),
-              np.squeeze(classes_all_t).astype(np.int32),
-              np.squeeze(scores_all_t),
-              category_index,
-              use_normalized_coordinates=True,
-              line_thickness=2)
-
           objArray.detections = []
           objArray.header = data.header
           object_count = 1
-
-          for i in range(len(objects)):
-            object_count += 1
-            objArray.detections.append(self.object_predict(objects[i], data.header, image_np, cv_image))
+          
+          num_patches = len(object_array)
+          for patch_id in range(0,num_patches):
+            objects = object_array[patch_id]
+            [x0, y0] = coords_array[patch_id]
+            image = image_array[patch_id]
+            image_np = image_np_array[patch_id]
+        
+            for i in range(len(objects)):
+              object_count += 1
+              objArray.detections.append(self.object_predict_patch(objects[i], data.header, image_np, image, x0, y0))
 
           self.object_pub.publish(objArray)
           
-          img = cv2.cvtColor(image_np, cv2.COLOR_BGR2RGB)
+          image_np_out = self.aggregate_patches(image_np_array, coords_array)
+          img = cv2.cvtColor(image_np_out, cv2.COLOR_BGR2RGB)
           image_out = Image()
           try:
             image_out = self.bridge.cv2_to_imgmsg(img, "bgr8")
@@ -238,6 +247,26 @@ with detection_graph.as_default():
         obj.bbox.center.y = int((dimensions[0] + dimensions[2]) * image_height / 2)
 
         return obj
+      
+      def object_predict_patch(self, object_data, header, image_np, image, x0, y0):
+        image_height, image_width, channels = image.shape
+        obj = Detection2D()
+        obj_hypothesis = ObjectHypothesisWithPose()
+
+        object_id = object_data[0]
+        object_score = object_data[1]
+        dimensions = object_data[2]
+
+        obj.header = header
+        obj_hypothesis.id = object_id
+        obj_hypothesis.score = object_score
+        obj.results.append(obj_hypothesis)
+        obj.bbox.size_y = int((dimensions[2] - dimensions[0]) * image_height)
+        obj.bbox.size_x = int((dimensions[3] - dimensions[1]) * image_width)
+        obj.bbox.center.x = int((dimensions[1] + dimensions [3]) * image_width / 2) + x0
+        obj.bbox.center.y = int((dimensions[0] + dimensions[2]) * image_height / 2) + y0
+
+        return obj
 
       def object_detection_service_cb(self, req):
         # if (req.mode == enway_msgs.SetObjectDetectionModeRequest.IDLE):
@@ -251,6 +280,23 @@ with detection_graph.as_default():
           self.object_detection_activated = True
 
         return True
+      
+      def aggregate_patches(self, image_np_array, coords_array):
+
+        im_out = np.zeros( [self.rows, self.cols, 3] )
+        print("im_out.shape")
+        print(im_out.shape)
+        for i in range(len(image_np_array)):
+          image_patch = image_np_array[i]
+          [start_col, start_row] = coords_array[i]
+          
+          stop_col = start_col + image_patch.shape[1]
+          stop_row = start_row + image_patch.shape[0]
+          print("i, start_col, stop_col, start_row, stop_row")
+          print(i, start_col, stop_col, start_row, stop_row)
+          im_out[start_row: stop_row, start_col : stop_col, :] = image_patch[:,:,:]
+          
+        return im_out
 
 def main(args):
   obj = detector()
