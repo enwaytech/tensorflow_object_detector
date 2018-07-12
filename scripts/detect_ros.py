@@ -5,6 +5,7 @@
 
 # Modified by Thanuja Ambegoda, Enway GmbH - May 13th, 2018
 # Added config.yaml to paraeterize model name, model path, label file path...
+# July 2018: Added processing of overlapping smaller image patches and putting them together
 
 import os
 import sys
@@ -87,7 +88,7 @@ with detection_graph.as_default():
       def generate_im_patch(self, img_in, patch_size, patch_stride):
         self.rows = img_in.shape[0]
         self.cols = img_in.shape[1]
-        
+
         # get the bottom half of the image
         img = img_in[(self.rows / 2 + 1) : self.rows, :]
         img_cv = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
@@ -100,7 +101,7 @@ with detection_graph.as_default():
             patch_id = patch_id + 1
             im_patch = img[i : i + patch_size, j : j + patch_size, ...]
             yield im_patch, i, j
-      
+
       def get_objects_in_image(self, image_in):
         # Each score represent how level of confidence for each of the objects.
         # Score is shown on the result image, together with the class label.
@@ -116,7 +117,7 @@ with detection_graph.as_default():
           # result image with boxes and labels on it.
           image_np = np.asarray(image)
           # Expand dimensions since the model expects images to have shape: [1, None, None, 3]
-          image_np_expanded = np.expand_dims(image_np, axis=0)              
+          image_np_expanded = np.expand_dims(image_np, axis=0)
           image_tensor = detection_graph.get_tensor_by_name('image_tensor:0')
           # Each box represents a part of the image where a particular object was detected.
           boxes = detection_graph.get_tensor_by_name('detection_boxes:0')
@@ -136,7 +137,7 @@ with detection_graph.as_default():
               category_index,
               use_normalized_coordinates=True,
               line_thickness=2)
-          
+
           object_array.append(objects)
           coord_array.append([x0, y0])
           image_array.append(image)
@@ -153,24 +154,24 @@ with detection_graph.as_default():
           image_in = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
           image_in_np = np.asarray(image_in)
           object_array, coords_array, image_array, image_np_array = self.get_objects_in_image(image_in)
-          
+
           objArray.detections = []
           objArray.header = data.header
           object_count = 1
-          
+
           num_patches = len(object_array)
           for patch_id in range(0,num_patches):
             objects = object_array[patch_id]
             [x0, y0] = coords_array[patch_id]
             image = image_array[patch_id]
             image_np = image_np_array[patch_id]
-        
+
             for i in range(len(objects)):
               object_count += 1
               objArray.detections.append(self.object_predict_patch(objects[i], data.header, image_np, image, x0, y0))
 
           self.object_pub.publish(objArray)
-          
+
           image_np_out = self.aggregate_patches(image_in_np, image_np_array, coords_array)
           image_np_out=image_np_out.astype(np.uint8)
           img = cv2.cvtColor(image_np_out, cv2.COLOR_BGR2RGB)
@@ -204,7 +205,7 @@ with detection_graph.as_default():
         obj.bbox.center.y = int((dimensions[0] + dimensions[2]) * image_height / 2)
 
         return obj
-      
+
       def object_predict_patch(self, object_data, header, image_np, image, x0, y0):
         image_height, image_width, channels = image.shape
         obj = Detection2D()
@@ -237,7 +238,7 @@ with detection_graph.as_default():
           self.object_detection_activated = True
 
         return True
-      
+
       def aggregate_patches(self, image_np_in, image_np_array, coords_array):
 
         im_out = image_np_in
@@ -248,7 +249,7 @@ with detection_graph.as_default():
           stop_col = start_col + image_patch.shape[1]
           stop_row = start_row + image_patch.shape[0]
           im_out[start_row: stop_row, start_col : stop_col, :] = image_patch[:,:,:]
-          
+
         return im_out
 
 def main(args):
