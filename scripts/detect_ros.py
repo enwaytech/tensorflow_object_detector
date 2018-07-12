@@ -172,6 +172,11 @@ with detection_graph.as_default():
           image_np_out = self.aggregate_patches(image_in_np, image_np_array, coords_array)
           image_np_out=image_np_out.astype(np.uint8)
           img = cv2.cvtColor(image_np_out, cv2.COLOR_BGR2RGB)
+          '''
+          save_name = '/home/thanuja/test/outputs/out.png'
+          print("output saved!**************")
+          cv2.imwrite(save_name, img)
+          '''
           image_out = Image()
           try:
             image_out = self.bridge.cv2_to_imgmsg(img, "bgr8")
@@ -216,7 +221,7 @@ with detection_graph.as_default():
         obj.bbox.size_y = int((dimensions[2] - dimensions[0]) * image_height)
         obj.bbox.size_x = int((dimensions[3] - dimensions[1]) * image_width)
         obj.bbox.center.x = int((dimensions[1] + dimensions [3]) * image_width / 2) + x0
-        obj.bbox.center.y = int((dimensions[0] + dimensions[2]) * image_height / 2) + y0
+        obj.bbox.center.y = int((dimensions[0] + dimensions[2]) * image_height / 2) + y0 + self.rows/2
 
         return obj
 
