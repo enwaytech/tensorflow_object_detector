@@ -92,9 +92,6 @@ with detection_graph.as_default():
         # get the bottom half of the image
         img = img_in[(self.rows / 2 + 1) : self.rows, :]
         img_cv = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        save_name = '/home/thanuja/test/outputs/in.png'
-        print("input saved!**************")
-        cv2.imwrite(save_name, img_cv)
         patch_id = 0
         for i in range(0, img.shape[0] - patch_size, patch_stride):
           for j in range(0, img.shape[1] - patch_size, patch_stride):
@@ -175,9 +172,6 @@ with detection_graph.as_default():
           image_np_out = self.aggregate_patches(image_in_np, image_np_array, coords_array)
           image_np_out=image_np_out.astype(np.uint8)
           img = cv2.cvtColor(image_np_out, cv2.COLOR_BGR2RGB)
-          save_name = '/home/thanuja/test/outputs/out.png'
-          print("output saved!**************")
-          cv2.imwrite(save_name, img)
           image_out = Image()
           try:
             image_out = self.bridge.cv2_to_imgmsg(img, "bgr8")
