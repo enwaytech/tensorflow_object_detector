@@ -11,6 +11,7 @@ import os
 import sys
 import cv2
 import numpy as np
+import time
 try:
     import tensorflow as tf
 except ImportError:
@@ -22,7 +23,7 @@ except ImportError:
 # ROS related imports
 import rospy
 import rospkg
-from std_msgs.msg import String , Header
+from std_msgs.msg import String , Header, Float32
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from vision_msgs.msg import Detection2D, Detection2DArray, ObjectHypothesisWithPose
@@ -36,6 +37,7 @@ from object_detection.utils import visualization_utils as vis_util
 rospy.init_node('tensorflow_object_detector_node')
 debug_image_topic = rospy.get_param('~debug_image_pub_name')
 object_pub_topic = rospy.get_param('~objects_detected_pub_name')
+processing_time_topic = rospy.get_param('~detection_time_topic')
 model_name = rospy.get_param('~model_name')
 gpu_fraction = rospy.get_param('~gpu_fraction')
 rospack = rospkg.RosPack()
@@ -80,6 +82,7 @@ with detection_graph.as_default():
       def __init__(self):
         self.image_pub = rospy.Publisher(debug_image_topic, Image, queue_size=1)
         self.object_pub = rospy.Publisher(object_pub_topic, Detection2DArray, queue_size=1)
+        self.processing_time_pub = rospy.Publisher(processing_time_topic, Float32, queue_size=1)
         self.bridge = CvBridge()
         self.image_sub = rospy.Subscriber("image", Image, self.image_cb, queue_size=1, buff_size=2 ** 24)
         self.serviceServer = rospy.Service('SetObjectDetectionMode', SetObjectDetectionMode, self.object_detection_service_cb)
@@ -143,6 +146,7 @@ with detection_graph.as_default():
 
       def image_cb(self, data):
         if(self.object_detection_activated):
+          start_time = time.clock()
           objArray = Detection2DArray()
           try:
             cv_image = self.bridge.imgmsg_to_cv2(data, "bgr8")
@@ -184,6 +188,10 @@ with detection_graph.as_default():
             print(e)
           image_out.header = data.header
           self.image_pub.publish(image_out)
+          stop_time = time.clock()
+          time_elapsed = stop_time - start_time
+          self.processing_time_pub.publish(time_elapsed)
+
 
       def object_predict(self, object_data, header, image_np, image):
         image_height, image_width, channels = image.shape
