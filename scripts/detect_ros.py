@@ -53,6 +53,7 @@ num_classes = rospy.get_param('~num_classes')
 patch_size = rospy.get_param('~patch_size')
 patch_stride = rospy.get_param('~patch_stride')
 min_score = rospy.get_param('~min_score')
+x_cutoff = rospy.get_param('~col_cutoff')
 
 detection_graph = tf.Graph()
 with detection_graph.as_default():
@@ -88,20 +89,37 @@ with detection_graph.as_default():
         self.serviceServer = rospy.Service('SetObjectDetectionMode', SetObjectDetectionMode, self.object_detection_service_cb)
         self.object_detection_activated = False
 
-      def generate_im_patch(self, img_in, patch_size, patch_stride):
+      def generate_im_patch_dense(self, img_in, patch_size, patch_stride):
         self.rows = img_in.shape[0]
         self.cols = img_in.shape[1]
 
         # get the bottom half of the image
         img = img_in[(self.rows / 2 + 1) : self.rows, :]
-        img_cv = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # img_cv = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         patch_id = 0
         for i in range(0, img.shape[0] - patch_size, patch_stride):
           for j in range(0, img.shape[1] - patch_size, patch_stride):
             patch_id = patch_id + 1
             im_patch = img[i : i + patch_size, j : j + patch_size, ...]
             yield im_patch, i, j
+            
+      def generate_im_patch_sparse(self, img_in, patch_size, patch_stride, x_cutoff):
+        self.rows = img_in.shape[0]
+        self.cols = img_in.shape[1]
 
+        row_start = self.rows - patch_size
+        col_start = x_cutoff
+        num_patches = ( self.cols - patch_stride - 2*x_cutoff ) / ( patch_size - patch_stride )
+        for patch_id in range(num_patches):
+          row_stop = row_start + patch_size
+          col_stop = col_start + patch_size
+          im_patch = img_in[row_start: row_stop, col_start : col_stop, ...]
+          im_patch_cv = cv2.cvtColor(im_patch, cv2.COLOR_BGR2RGB)
+          save_file_name = '/home/thanuja/test/inputs/patch_{}.png'.format(patch_id)
+          cv2.imwrite(save_file_name, im_patch_cv)
+          yield im_patch, row_start, col_start
+          col_start = col_stop
+        
       def get_objects_in_image(self, image_in):
         # Each score represent how level of confidence for each of the objects.
         # Score is shown on the result image, together with the class label.
@@ -111,7 +129,7 @@ with detection_graph.as_default():
         image_np_array = []
         patch_id = 0
         # Split image and run the following code for each image in parallel
-        for image, y0, x0 in self.generate_im_patch(image_in, patch_size, patch_stride):
+        for image, y0, x0 in self.generate_im_patch_sparse(image_in, patch_size, patch_stride, x_cutoff):
           patch_id = patch_id + 1
           # the array based representation of the image will be used later in order to prepare the
           # result image with boxes and labels on it.
@@ -173,14 +191,14 @@ with detection_graph.as_default():
 
           self.object_pub.publish(objArray)
 
-          image_np_out = self.aggregate_patches(image_in_np, image_np_array, coords_array)
+          image_np_out = self.aggregate_patches_sparse(image_in_np, image_np_array, coords_array)
           image_np_out=image_np_out.astype(np.uint8)
           img = cv2.cvtColor(image_np_out, cv2.COLOR_BGR2RGB)
-          '''
+          
           save_name = '/home/thanuja/test/outputs/out.png'
           print("output saved!**************")
           cv2.imwrite(save_name, img)
-          '''
+          
           image_out = Image()
           try:
             image_out = self.bridge.cv2_to_imgmsg(img, "bgr8")
@@ -258,6 +276,18 @@ with detection_graph.as_default():
           im_out[start_row: stop_row, start_col : stop_col, :] = image_patch[:,:,:]
 
         return im_out
+      
+      def aggregate_patches_sparse(self, image_np_in, image_np_array, coords_array):
+
+        im_out = image_np_in
+        for i in range(len(image_np_array)):
+          image_patch = image_np_array[i]
+          [start_col, start_row] = coords_array[i]
+          stop_col = start_col + image_patch.shape[1]
+          stop_row = start_row + image_patch.shape[0]
+          im_out[start_row: stop_row, start_col : stop_col, :] = image_patch[:,:,:]
+
+        return im_out      
 
 def main(args):
   obj = detector()
