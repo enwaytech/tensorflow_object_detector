@@ -114,9 +114,11 @@ with detection_graph.as_default():
           row_stop = row_start + patch_size
           col_stop = col_start + patch_size
           im_patch = img_in[row_start: row_stop, col_start : col_stop, ...]
+          '''
           im_patch_cv = cv2.cvtColor(im_patch, cv2.COLOR_BGR2RGB)
           save_file_name = '/home/thanuja/test/inputs/patch_{}.png'.format(patch_id)
           cv2.imwrite(save_file_name, im_patch_cv)
+          '''
           yield im_patch, row_start, col_start
           col_start = col_stop
         
@@ -195,10 +197,11 @@ with detection_graph.as_default():
           image_np_out=image_np_out.astype(np.uint8)
           img = cv2.cvtColor(image_np_out, cv2.COLOR_BGR2RGB)
           
+          '''
           save_name = '/home/thanuja/test/outputs/out.png'
           print("output saved!**************")
           cv2.imwrite(save_name, img)
-          
+          '''
           image_out = Image()
           try:
             image_out = self.bridge.cv2_to_imgmsg(img, "bgr8")
