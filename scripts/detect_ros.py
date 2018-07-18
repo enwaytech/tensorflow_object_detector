@@ -173,6 +173,13 @@ with detection_graph.as_default():
           except CvBridgeError as e:
             print(e)
           image_in = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
+          
+          # tmp saving
+          '''
+          save_file_name = '/home/thanuja/test/inputs/input.png'
+          cv2.imwrite(save_file_name, image_in)
+          '''
+                    
           image_in_np = np.asarray(image_in)
           object_array, coords_array, image_array, image_np_array = self.get_objects_in_image(image_in)
 
