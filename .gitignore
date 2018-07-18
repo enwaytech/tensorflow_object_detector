@@ -1,1 +1,8 @@
+*.log
+.idea
 *.pyc
+*.swp
+__pycache__
+id_rsa*
+.ycm_extra_conf.py
+.robot_bash
